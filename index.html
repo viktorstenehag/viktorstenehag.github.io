@@ -10,7 +10,15 @@
   <header class="app-header">
     <h1>Min Produktivitetsapp</h1>
   </header>
-  <!-- Lägg till dina komponenter här -->
+
+  <main class="todo-container">
+    <form id="todo-form">
+      <input type="text" id="todo-input" placeholder="Lägg till en uppgift" required>
+      <button type="submit">+</button>
+    </form>
+    <ul id="todo-list"></ul>
+  </main>
+
   <script src="script.js" defer></script>
 </body>
 </html>
