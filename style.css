@@ -108,4 +108,75 @@
   .delete-btn {
     color: crimson;
   }
+
+  .journal-section {
+    margin-top: 2rem;
+  }
+  
+  #journal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  #journal-form input,
+  #journal-form textarea {
+    padding: 0.5rem;
+    border: 2px solid var(--accent-green);
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+  
+  #journal-form button {
+    background-color: var(--accent-green);
+    color: white;
+    border: none;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  
+  .journal-entry {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+  }
+  
+  .journal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .journal-buttons {
+    margin-top: 0.5rem;
+  }
+  
+  .journal-buttons button {
+    margin-right: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .edit-btn {
+    background-color: #ffc107;
+    color: #000;
+  }
+  
+  .delete-btn {
+    background-color: crimson;
+    color: white;
+  }
+  
+  .toggle-btn {
+    background-color: #e0e0e0;
+    color: #000;
+  }
   
