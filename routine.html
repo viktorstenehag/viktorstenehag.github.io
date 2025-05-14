@@ -1,0 +1,32 @@
+<!-- routine.html -->
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Träningsrutin</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Träningsrutin</h1>
+  </header>
+
+  <main class="routine-container">
+    <button id="log-training" class="log-training-btn">Jag har tränat idag</button>
+
+    <section class="heatmap-section">
+      <h2>Veckoöversikt</h2>
+      <div id="heatmap" class="heatmap-grid">
+        <!-- Punkter för heatmap genereras med JavaScript -->
+      </div>
+    </section>
+
+    <div class="nav-buttons">
+      <a href="index.html" class="journal-link">Tillbaka till startsidan</a>
+    </div>
+  </main>
+
+  <script src="routine.js" defer></script>
+</body>
+</html>
