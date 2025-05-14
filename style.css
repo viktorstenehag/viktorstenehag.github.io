@@ -127,6 +127,7 @@
     font-size: 1rem;
     width: 100%;
     box-sizing: border-box;
+    height: 3rem;
   }
   
   #journal-form textarea {
