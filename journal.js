@@ -79,3 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
+const journalText = document.getElementById("journal-text");
+
+journalText.addEventListener("input", function () {
+  this.style.height = "auto";
+  this.style.height = this.scrollHeight + "px";
+});

@@ -126,6 +126,11 @@
     border: 2px solid var(--accent-green);
     border-radius: 6px;
     font-size: 1rem;
+    resize: none;
+    overflow: hidden;
+    min-height: 100px;
+    width: 100%;
+    box-sizing: border-box;
   }
   
   #journal-form button {
