@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daglig rutin-tracker</title>
+  <style>
+    :root{
+      --bg:#f8fafc; --card:#fff; --ink:#0f172a; --muted:#475569; --border:#e2e8f0;
+      --ok:#16a34a; --bad:#dc2626;
+      --c0:#d4d4d8; --c1:#f87171; --c2:#f59e0b; --c3:#22c55e; --c4:#60a5fa; --c5:#6366f1;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(#fff,var(--bg));color:var(--ink);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+    .wrap{max-width:1000px;margin:auto;padding:20px}
+    h1{margin:0 0 4px;font-size:28px}
+    .muted{color:var(--muted);font-size:12px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.04);padding:16px}
+    .grid{display:grid;gap:8px}
+    .btn{border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer}
+    .btn:hover{box-shadow:0 1px 4px rgba(0,0,0,.08)}
+    .btn.danger{border-color:#fecaca;color:#b91c1c}
+    .checklist{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px}
+    .item{display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px}
+    .item input{width:18px;height:18px}
+    /* heatmap */
+    .hm-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+    .hm{display:flex;gap:4px;overflow:auto;padding-bottom:4px}
+    .hm-col{display:flex;flex-direction:column;gap:4px}
+    .hm-cell{width:14px;height:14px;border-radius:3px;background:#e5e7eb}
+    .c0{background:var(--c0)} .c1{background:var(--c1)} .c2{background:var(--c2)}
+    .c3{background:var(--c3)} .c4{background:var(--c4)} .c5{background:var(--c5)}
+    /* table */
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:8px;border-top:1px solid var(--border);text-align:left}
+    .good{color:var(--ok)} .bad{color:var(--bad)}
+    /* chart */
+    .chart{width:100%;height:260px}
+    @media (max-width:720px){
+      .checklist{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="row" style="justify-content:space-between">
+      <div>
+        <h1>Daglig rutin-tracker</h1>
+        <div class="muted" id="today"></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btn-reset">Nollställ idag</button>
+        <button class="btn" id="btn-export">Exportera</button>
+        <label class="btn"><input type="file" id="file" accept="application/json" style="display:none">Importera</label>
+        <button class="btn danger" id="btn-clear">Rensa allt</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <h3>Idag</h3>
+      <div class="checklist" id="checklist"></div>
+      <div class="muted" style="margin-top:6px">
+        Dagen räknas som <b>upp</b> om du klarar fler än hälften (3 av 5).
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <h3 style="margin:0">Heatmap — 52 veckor</h3>
+        <div class="hm-legend">
+          <span>0</span>
+          <span class="hm-cell c0"></span>
+          <span class="hm-cell c1"></span>
+          <span class="hm-cell c2"></span>
+          <span class="hm-cell c3"></span>
+          <span class="hm-cell c4"></span>
+          <span>5</span>
+        </div>
+      </div>
+      <div class="hm" id="heatmap"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0">Diagram — kumulativt upp/ner</h3>
+      <svg class="chart" id="chart" viewBox="0 0 800 260" preserveAspectRatio="none"></svg>
+      <div class="muted" style="margin-top:6px">
+        Varje dag: +1 om > halva, annars −1. Linjen visar din samlade utveckling.
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0">Historik (senaste 14 dagar)</h3>
+      <div style="overflow:auto">
+        <table id="table">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Träning</th><th>Mat</th><th>Vatten</th><th>Sömn</th><th>Arbete</th>
+              <th>Klarade</th><th>Upp/Ner</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="muted" style="padding:12px 0">
+      Tips: Bädda in i Notion via /embed. Data sparas i din webbläsare (localStorage).
+    </footer>
+  </div>
+
+  <script>
+    // ---- Helpers ----
+    const ROUTINES = ["Träning","Mat","Vatten","Sömn","Arbete"];
+    const STORAGE_KEY = "routine-tracker-v2";
+    const $ = sel => document.querySelector(sel);
+    const todayIso = () => new Date().toISOString().slice(0,10);
+    const fmt = d => d;
+
+    function loadStore(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) throw 0;
+        const s = JSON.parse(raw);
+        if(!Array.isArray(s.days)) throw 0;
+        return s;
+      }catch{
+        const empty = Object.fromEntries(ROUTINES.map(r=>[r,false]));
+        return { routines:[...ROUTINES], days:[{date:todayIso(), checks:empty}], version:1 };
+      }
+    }
+    function saveStore(s){ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+    // ---- State ----
+    let store = loadStore();
+    const today = todayIso();
+    $("#today").textContent = today;
+
+    // Ensure today exists
+    (function ensureToday(){
+      if(!store.days.find(d=>d.date===today)){
+        const empty = Object.fromEntries(ROUTINES.map(r=>[r,false]));
+        store.days.push({date:today, checks:empty});
+        saveStore(store);
+      }
+    })();
+
+    // If tab stays past midnight, roll over
+    setInterval(()=>{
+      const t = todayIso();
+      if(!store.days.find(d=>d.date===t)){
+        const empty = Object.fromEntries(ROUTINES.map(r=>[r,false]));
+        store.days.push({date:t, checks:empty});
+        saveStore(store);
+        $("#today").textContent = t;
+        renderAll();
+      }
+    }, 60*1000);
+
+    // ---- UI: Checklist ----
+    function renderChecklist(){
+      const cont = $("#checklist");
+      cont.innerHTML = "";
+      const todayEntry = store.days.find(d=>d.date===todayIso());
+      ROUTINES.forEach(r=>{
+        const wrap = document.createElement("label");
+        wrap.className = "item";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!todayEntry.checks[r];
+        cb.addEventListener("change", ()=>{
+          todayEntry.checks[r] = cb.checked;
+          saveStore(store);
+          renderStats();
+        });
+        const txt = document.createElement("span");
+        txt.textContent = r;
+        wrap.appendChild(cb); wrap.appendChild(txt);
+        cont.appendChild(wrap);
+      });
+    }
+
+    // ---- Stats + History ----
+    function perDay(){
+      return store.days
+        .slice().sort((a,b)=>a.date<b.date?-1:1)
+        .map(d=>{
+          const completed = Object.values(d.checks).filter(Boolean).length;
+          const success = completed > ROUTINES.length/2;
+          return {date:d.date, completed, success};
+        });
+    }
+
+    function cumulative(series){
+      let score = 0;
+      return series.map(d=>({date:d.date, score:(score += (d.success?1:-1))}));
+    }
+
+    // ---- Heatmap (52 weeks) ----
+    function renderHeatmap(){
+      const node = $("#heatmap");
+      node.innerHTML = "";
+      const today = new Date(); today.setHours(0,0,0,0);
+      const start = new Date(today); start.setDate(start.getDate()-7*52+1);
+      const byDate = new Map(store.days.map(d=>[d.date,d]));
+      // Build sequence of days
+      const cells = [];
+      for(let d=new Date(start); d<=today; d.setDate(d.getDate()+1)){
+        const key = d.toISOString().slice(0,10);
+        const entry = byDate.get(key);
+        const completed = entry ? Object.values(entry.checks).filter(Boolean).length : 0;
+        cells.push({date:key, completed});
+      }
+      // Bucket to weeks (Mon-Sun)
+      let week=[], weeks=[];
+      for(const c of cells){
+        const dt = new Date(c.date+"T00:00:00");
+        const day = (dt.getDay()+6)%7; // 0=Mon
+        if(day===0 && week.length){ weeks.push(week); week=[]; }
+        week.push(c);
+      }
+      if(week.length) weeks.push(week);
+
+      // Draw
+      weeks.forEach(w=>{
+        const col = document.createElement("div"); col.className="hm-col";
+        for(let i=0;i<7;i++){
+          const cell = w[i];
+          const div = document.createElement("div");
+          let cls = "hm-cell";
+          if(cell){
+            const n = Math.min(cell.completed,5);
+            cls += " c"+n;
+            div.title = `${cell.date}: ${cell.completed} av ${ROUTINES.length}`;
+          }
+          div.className = cls;
+          col.appendChild(div);
+        }
+        node.appendChild(col);
+      });
+    }
+
+    // ---- Chart (SVG) ----
+    function renderChart(){
+      const svg = $("#chart");
+      svg.innerHTML = "";
+      const stats = perDay();
+      const series = cumulative(stats);
+      if(series.length===0){ return; }
+
+      const W = 800, H = 260, PADL=35, PADR=10, PADT=10, PADB=24;
+      const x = (i)=> PADL + ( (W-PADL-PADR) * (i/(series.length-1||1)) );
+      const y = (v)=>{
+        const min = Math.min(0, ...series.map(s=>s.score));
+        const max = Math.max(0, ...series.map(s=>s.score));
+        const rng = (max-min)||1;
+        return H-PADB - ( (H-PADT-PADB) * ((v-min)/rng) );
+      };
+
+      // Axis 0-line
+      const y0 = y(0);
+      const zero = document.createElementNS("http://www.w3.org/2000/svg","line");
+      zero.setAttribute("x1", PADL); zero.setAttribute("x2", W-PADR);
+      zero.setAttribute("y1", y0); zero.setAttribute("y2", y0);
+      zero.setAttribute("stroke", "#94a3b8"); zero.setAttribute("stroke-dasharray","4 4");
+      svg.appendChild(zero);
+
+      // Path
+      let d = "";
+      series.forEach((p,i)=>{
+        const X = x(i), Y = y(p.score);
+        d += (i? " L":"M")+X+" "+Y;
+      });
+      const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill","none");
+      path.setAttribute("stroke","#0ea5e9");
+      path.setAttribute("stroke-width","2");
+      svg.appendChild(path);
+    }
+
+    // ---- Table ----
+    function renderTable(){
+      const tbody = $("#table tbody");
+      tbody.innerHTML = "";
+      const stats = perDay().slice(-14);
+      stats.forEach(d=>{
+        const tr = document.createElement("tr");
+        const tds = [];
+        tds.push(cell(d.date));
+        const entry = store.days.find(x=>x.date===d.date);
+        ["Träning","Mat","Vatten","Sömn","Arbete"].forEach(r=>{
+          tds.push(cell(entry && entry.checks[r] ? "✓" : "–"));
+        });
+        tds.push(cell(`${d.completed}/${ROUTINES.length}`));
+        tds.push(cell(d.success?"+1":"−1", d.success?"good":"bad"));
+        tds.forEach(td=>tr.appendChild(td));
+        tbody.appendChild(tr);
+      });
+      function cell(txt, cls){ const td=document.createElement("td"); td.textContent=txt; if(cls) td.className=cls; return td; }
+    }
+
+    function renderStats(){
+      renderHeatmap();
+      renderChart();
+      renderTable();
+    }
+
+    function renderAll(){
+      renderChecklist();
+      renderStats();
+    }
+
+    // ---- Buttons ----
+    $("#btn-reset").addEventListener("click", ()=>{
+      const t = store.days.find(d=>d.date===todayIso());
+      ROUTINES.forEach(r=>t.checks[r]=false);
+      saveStore(store); renderAll();
+    });
+
+    $("#btn-clear").addEventListener("click", ()=>{
+      if(!confirm("Återställ allt? Detta raderar all historik.")) return;
+      const empty = Object.fromEntries(ROUTINES.map(r=>[r,false]));
+      store = { routines:[...ROUTINES], days:[{date:todayIso(), checks:empty}], version:1 };
+      saveStore(store); renderAll();
+    });
+
+    $("#btn-export").addEventListener("click", ()=>{
+      const blob = new Blob([JSON.stringify(store,null,2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `routine-tracker-${todayIso()}.json`; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("file").addEventListener("change", (e)=>{
+      const f = e.target.files?.[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const data = JSON.parse(String(reader.result));
+          if(!data.days || !data.routines) throw 0;
+          store = data; saveStore(store); renderAll();
+        }catch{ alert("Kunde inte läsa filen."); }
+      };
+      reader.readAsText(f); e.target.value = "";
+    });
+
+    // ---- Initial render ----
+    renderAll();
+  </script>
+</body>
+</html>
